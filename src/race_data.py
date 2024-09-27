@@ -19,23 +19,27 @@ class RaceData:
             response = requests.get(f'{self.__server}{request_text}')
             if response.status_code == 200:
                 if len(response.json()) == 0:
-                    print(f"[{utils.timestamp()} {self.__server}{request_text}] Server response empty")
+                    self.__log_entry(request_text,'Server response empty')
                     return False
                 self.__data = response.json()
-                print(f"[{utils.timestamp()} {self.__server}{request_text}] Success")
+                self.__log_entry(request_text,'Success')
                 return True
             else:
-                print(f"[{utils.timestamp()} {self.__server}{request_text}] Server response: {response.status_code}")
+                self.__log_entry(request_text,f'Server response: {response.status_code}')
                 return False
         except Exception as e:
-            print(f"[{utils.timestamp()} {self.__server}{request_text}] Error retrieving data: {e}")
+            self.__log_entry(request_text,f'Error retrieving data: {e}')
             return False
+
+    def __log_entry(self, request_text, text):
+    # prints a message in the log including the API request
+        print(f"[{utils.timestamp()} {self.__server}{request_text}] {text}")
 
     def get_races_of_year(self, year = 2024):
     # returns a dict with races (+sprints) of a specific year
         races = {}
         if self.__api_request(f'sessions?session_type=Race&year={year}'):
-            for race_item in self.__data:  # using for but this should only be 1 line
+            for race_item in self.__data:
                 races[race_item['session_key']] = race_item
         return races
 

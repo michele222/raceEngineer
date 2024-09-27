@@ -61,28 +61,58 @@ tab1_content = dbc.Card(
     dbc.CardBody(
         [
             html.Div([
+                dbc.Row([
+                    dbc.Col(html.Label("Select race"), width = 1),
+                    dbc.Col(dbc.Select(list(range(current_year(), 2022, -1)),
+                               current_year(),
+                               id="year-select",
+                               size="sm",
+                               ), width = 1),
+                    dbc.Col(dbc.Select(['latest'],
+                               event["session_key"],
+                               id="race-select",
+                               size="sm",
+                               ), width = 9),
+                    #dbc.Col(dbc.Button("Go", size="sm"), width = 1)
+                ], justify="start"),
+            ]),
+            html.Div([
                 dcc.Graph(id='live-lap-time-graph',
                           figure=go.Figure(
                               data=traces,
                               layout=go.Layout(
                                   title=f'{event_title} - Race Trace',
-                                  xaxis={'title': 'Lap Number'},
-                                  yaxis={'title': 'Gap (seconds)', 'autorange': 'reversed'},
+                                  xaxis={'title': 'Lap Number',
+                                         'minallowed': 0,
+                                         'tick0': 0,
+                                         'dtick': 5,
+                                         'zeroline': False,
+                                         'gridcolor':'#333333',
+                                         'minor': {'ticklen': 3,
+                                                   'dtick': 1,
+                                                   'showgrid': True}},
+                                  yaxis={'title': 'Gap (seconds)',
+                                         'autorange': 'reversed',
+                                         'zeroline': False,
+                                         'gridcolor':'#333333'},
                                   hovermode='closest',
-                                  height=1000
+                                  height=1000,
+                                  plot_bgcolor='#111111',
+                                  paper_bgcolor='#222222',
+                                  font_color='#999999'
                               ))),
                 dcc.Interval(
                     id='interval-component',
                     interval=interval * 1000,  # Update every x milliseconds
                     n_intervals=0,
-                    disabled=False
+                    disabled=True
                 ),
                 dcc.Store(id='drivers-data', data=drivers),
                 html.Small(id = "last-update-text", className = "text-muted"),
                 dbc.Checkbox(
                     id="live-update-checkbox",
                     label="Live updates",
-                    value=True,
+                    value=False,
                 ),
                 dbc.Fade(
                     dbc.Card(
@@ -96,19 +126,19 @@ tab1_content = dbc.Card(
                         style={"width": "18rem"},
                     ),
                     id="live-update-fade",
-                    is_in=True,
+                    is_in=False,
                     appear=True,
                 ),
-                html.Label("Select race"),
-                dbc.Select(list(range(current_year(), 2022, -1)),
-                           current_year(),
-                           id="year-select",
-                           ),
-                dbc.Select(['latest'],
-                           'latest',
-                           id="race-select",
-                           ),
-                #dbc.Button("Go", size="sm"),
+                # html.Label("Select race"),
+                # dbc.Select(list(range(current_year(), 2022, -1)),
+                #            current_year(),
+                #            id="year-select",
+                #            ),
+                # dbc.Select(['latest'],
+                #            event["session_key"],
+                #            id="race-select",
+                #            ),
+                # #dbc.Button("Go", size="sm"),
             ])
         ]
     ),
