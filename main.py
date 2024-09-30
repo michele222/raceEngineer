@@ -2,8 +2,6 @@ import dash
 import dash_bootstrap_components as dbc
 import plotly.graph_objs as go
 
-from datetime import datetime
-
 from dash import dcc, html
 from dash.dependencies import Output, Input, State
 from numpy import cumsum
@@ -18,12 +16,12 @@ interval = 30 #update every x seconds
 #     mock_drivers_data = json.load(json_file)
 # drivers = get_drivers(mock_drivers_data)
 
-race = RaceData()
+default_race = RaceData()
 
-drivers = race.get_drivers()
+drivers = default_race.get_drivers()
 
-event = race.get_race_event()
-event_title = f'{event["country_name"]} {event["year"]} - {event["location"]}'
+default_event = default_race.get_race_event()
+event_title = f'{default_event["country_name"]} {default_event["year"]} - {default_event["location"]}'
 
 # event_title = 'Grand Prix'
 # try:
@@ -46,10 +44,23 @@ event_title = f'{event["country_name"]} {event["year"]} - {event["location"]}'
 # Prepare the traces for the line plot
 traces = []
 for driver in drivers.values():
-    traces.append(go.Scatter(
+    traces.append(go.Scattergl(
         x = [0],  # X-axis: lap numbers
         y = [0], # Y-axis: cumulated lap times
         mode = 'lines+markers',
+        name = driver['name_acronym'],
+        line_color = driver['team_colour']
+    ))
+
+# with open('mock_data/live_gaps_singapore.json') as json_file:
+#     temp_data = json.load(json_file)
+data_live = default_race.get_driver_intervals()
+traces_live = []
+for driver in drivers.values():
+    traces_live.append(go.Scattergl(
+        x = list(data_live[driver['driver_number']].keys()),
+        y = list(data_live[driver['driver_number']].values()),
+        mode = 'lines',
         name = driver['name_acronym'],
         line_color = driver['team_colour']
     ))
@@ -61,23 +72,7 @@ tab1_content = dbc.Card(
     dbc.CardBody(
         [
             html.Div([
-                dbc.Row([
-                    dbc.Col(html.Label("Select race"), width = 1),
-                    dbc.Col(dbc.Select(list(range(current_year(), 2022, -1)),
-                               current_year(),
-                               id="year-select",
-                               size="sm",
-                               ), width = 1),
-                    dbc.Col(dbc.Select(['latest'],
-                               event["session_key"],
-                               id="race-select",
-                               size="sm",
-                               ), width = 9),
-                    #dbc.Col(dbc.Button("Go", size="sm"), width = 1)
-                ], justify="start"),
-            ]),
-            html.Div([
-                dcc.Graph(id='live-lap-time-graph',
+                dcc.Graph(id='race-trace-graph',
                           figure=go.Figure(
                               data=traces,
                               layout=go.Layout(
@@ -148,8 +143,26 @@ tab1_content = dbc.Card(
 tab2_content = dbc.Card(
     dbc.CardBody(
         [
-            html.P("Nothing to see here yet", className="card-text"),
-            dbc.Button("Do nothing", color="danger"),
+            html.Div([
+                dcc.Graph(id='live-gaps-graph',
+                          figure=go.Figure(
+                              data=traces_live,
+                              layout=go.Layout(
+                                  title=f'{event_title} - Live Gaps',
+                                  xaxis={'title': 'Time',
+                                         'zeroline': False,
+                                         'gridcolor': '#333333'},
+                                  yaxis={'title': 'Gap (seconds)',
+                                         'autorange': 'reversed',
+                                         'zeroline': False,
+                                         'gridcolor': '#333333'},
+                                  hovermode='closest',
+                                  height=1000,
+                                  plot_bgcolor='#111111',
+                                  paper_bgcolor='#222222',
+                                  font_color='#999999'
+                              )))
+            ])
         ]
     ),
     className="mt-3",
@@ -165,52 +178,84 @@ tabs = dbc.Tabs(
 # Layout of the app
 app.layout = html.Div([
     html.H1("raceEngineer"),
+    html.Div([
+        dbc.Row([
+            dbc.Col(html.Label("Select race"), width = 1),
+            dbc.Col(dbc.Select(list(range(current_year(), 2022, -1)),
+                       current_year(),
+                       id="year-select",
+                       size="sm",
+                       ), width = 1),
+            dbc.Col(dbc.Select(['latest'],
+                       default_event["session_key"],
+                       id="race-select",
+                       size="sm",
+                       ), width = 9),
+            #dbc.Col(dbc.Button("Go", size="sm"), width = 1)
+        ], justify="start"),
+    ]),
     tabs
 ], className="m-4")
 
 
 # Callback to update the graph
-@app.callback(Output('live-lap-time-graph', 'figure'),
+@app.callback(Output('race-trace-graph', 'figure'),
+              Output('live-gaps-graph', 'figure'),
               Output('last-update-text', 'children'),
               Output('drivers-data', 'data'),
               Input('interval-component', 'n_intervals'),
               Input('race-select', 'value'),
-              State('live-lap-time-graph', 'figure'),
+              State('race-trace-graph', 'figure'),
+              State('live-gaps-graph', 'figure'),
               State('last-update-text', 'children'),
               State('drivers-data', 'data'),
 )
-def update_graph_live(n, in_race, fig, last_update_text, in_drivers):
+def update_graphs(_, in_race, race_trace_graph, live_gaps_graph, last_update_text, in_drivers):
     activator = dash.ctx.triggered_id
-    out_figure = fig
-    out_text = last_update_text
     out_drivers = {int(i):v for i,v in in_drivers.items()}
-    live_race = RaceData(in_race)
-    live_data = live_race.get_driver_diff_laps()
+    race = RaceData(in_race)
+    race_trace_data = race.get_driver_diff_laps()
+    live_gaps_data = race.get_driver_intervals()
 
-    if len(live_data) > 0:
-        out_figure = go.Figure(fig)
-        out_text = f"Last updated on {utils.timestamp()}"
+    if len(race_trace_data) > 0:
+        race_trace_graph = go.Figure(race_trace_graph)
+        live_gaps_graph = go.Figure(live_gaps_graph)
+        last_update_text = f"Last updated on {utils.timestamp()}"
 
         if activator == 'race-select':
-            live_event = live_race.get_race_event()
-            out_figure.layout.title = f'{live_event["country_name"]} {live_event["year"]} - {live_event["location"]}'
-            out_figure.data = []
-            out_drivers = live_race.get_drivers()
+            event = race.get_race_event()
+            race_trace_graph.layout.title = f'{event["country_name"]} {event["year"]} - {event["location"]}'
+            live_gaps_graph.layout.title = race_trace_graph.layout.title
+            race_trace_graph.data = []
+            live_gaps_graph.data = []
+            out_drivers = race.get_drivers()
             for driver in out_drivers.values():
-                out_figure.add_trace(go.Scatter(
+                race_trace_graph.add_trace(go.Scattergl(
                     x=[0],  # X-axis: lap numbers
                     y=[0],  # Y-axis: cumulated lap times
                     mode='lines+markers',
                     name=driver['name_acronym'],
                     line_color=driver['team_colour']
                 ))
+                live_gaps_graph.add_trace(go.Scattergl(
+                    x=[],  # X-axis: lap numbers
+                    y=[],  # Y-axis: cumulated lap times
+                    mode='lines',
+                    name=driver['name_acronym'],
+                    line_color=driver['team_colour']
+                ))
         # Update the traces for the line plot
-        for driver_id, lap_times in live_data.items():
-            out_figure.update_traces(dict(x=list(lap_times.keys()),
-                                          y=cumsum(list(lap_times.values()))),
-                                     selector=({'name':out_drivers[driver_id]['name_acronym']}))
+        for driver_id, lap_times in race_trace_data.items():
+            race_trace_graph.update_traces(dict(x=list(lap_times.keys()),
+                                                y=cumsum(list(lap_times.values()))),
+                                           selector=({'name':out_drivers[driver_id]['name_acronym']}))
 
-    return out_figure, out_text, out_drivers
+        for driver_id, gaps in live_gaps_data.items():
+            live_gaps_graph.update_traces(dict(x=list(gaps.keys()),
+                                               y=list(gaps.values())),
+                                          selector=({'name':out_drivers[driver_id]['name_acronym']}))
+
+    return race_trace_graph, live_gaps_graph, last_update_text, out_drivers
 
 @app.callback(
     Output("live-update-fade", "is_in"),

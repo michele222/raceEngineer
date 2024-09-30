@@ -1,3 +1,5 @@
+import json
+
 import requests
 from dateutil import parser
 from statistics import median
@@ -84,6 +86,17 @@ class RaceData:
                 if utils.is_float(lap_item['lap_duration']):
                     driver_laps[lap_item['driver_number']][lap_item['lap_number']] = lap_item['lap_duration']
         return driver_laps
+
+    def get_driver_intervals(self):
+    # per driver (id is number), returns a dict with time: gap from leader
+        driver_intervals = {}
+        if self.__api_request(f'intervals?session_key={self.__race_id}'):
+            for interval_item in self.__data:
+                if interval_item['driver_number'] not in driver_intervals:
+                    driver_intervals[interval_item['driver_number']] = {}
+                if utils.is_float(interval_item['gap_to_leader']):
+                    driver_intervals[interval_item['driver_number']][interval_item['date']] = interval_item['gap_to_leader']
+        return driver_intervals
 
     def __process_laps(self, operation):
     # per lap, returns a list with processed lap times
