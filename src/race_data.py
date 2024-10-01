@@ -87,6 +87,17 @@ class RaceData:
                     driver_laps[lap_item['driver_number']][lap_item['lap_number']] = lap_item['lap_duration']
         return driver_laps
 
+    def get_driver_positions(self):
+    # per driver (id is number), returns a dict with positions over time, and the current position
+        driver_positions = {}
+        if self.__api_request(f'position?session_key={self.__race_id}'):
+            for position_item in self.__data:
+                if position_item['driver_number'] not in driver_positions:
+                    driver_positions[position_item['driver_number']] = {}
+                driver_positions[position_item['driver_number']]['current'] = position_item['position']
+                driver_positions[position_item['driver_number']][position_item['date']] = position_item['position']
+        return driver_positions
+
     def get_driver_intervals(self):
     # per driver (id is number), returns a dict with time: gap from leader
         driver_intervals = {}

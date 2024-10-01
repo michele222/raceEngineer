@@ -40,7 +40,6 @@ event_title = f'{default_event["country_name"]} {default_event["year"]} - {defau
 # with open('mock_data/baku.json') as json_file:
 #     mock_data = json.load(json_file)
 # data = mock_data #TODO: data should still be initialized
-
 # Prepare the traces for the line plot
 traces = []
 for driver in drivers.values():
@@ -52,18 +51,34 @@ for driver in drivers.values():
         line_color = driver['team_colour']
     ))
 
+driver_positions = default_race.get_driver_positions()
+driver_positions_table = {}
 # with open('mock_data/live_gaps_singapore.json') as json_file:
 #     temp_data = json.load(json_file)
 data_live = default_race.get_driver_intervals()
+table_rows = []
 traces_live = []
 for driver in drivers.values():
+    y_trace = list(data_live[driver['driver_number']].values())
     traces_live.append(go.Scattergl(
         x = list(data_live[driver['driver_number']].keys()),
-        y = list(data_live[driver['driver_number']].values()),
+        y = y_trace,
         mode = 'lines',
         name = driver['name_acronym'],
         line_color = driver['team_colour']
     ))
+    driver_positions_table[driver_positions[driver['driver_number']]['current']] = {'last_name': driver['last_name'],
+                                                                                    'gap': y_trace[-1]}
+
+for position, driver in sorted(driver_positions_table.items()):
+    gap_text = ''
+    if driver['gap'] > 0:
+        gap_text = f"+{driver['gap']:.3f}"
+    table_rows.append(html.Tr([html.Td(position),
+                               html.Td(driver['last_name']),
+                               html.Td(gap_text)]))
+
+
 
 # Initialize the Dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.SLATE])#, update_title=None)
@@ -144,24 +159,34 @@ tab2_content = dbc.Card(
     dbc.CardBody(
         [
             html.Div([
-                dcc.Graph(id='live-gaps-graph',
-                          figure=go.Figure(
-                              data=traces_live,
-                              layout=go.Layout(
-                                  title=f'{event_title} - Live Gaps',
-                                  xaxis={'title': 'Time',
-                                         'zeroline': False,
-                                         'gridcolor': '#333333'},
-                                  yaxis={'title': 'Gap (seconds)',
-                                         'autorange': 'reversed',
-                                         'zeroline': False,
-                                         'gridcolor': '#333333'},
-                                  hovermode='closest',
-                                  height=1000,
-                                  plot_bgcolor='#111111',
-                                  paper_bgcolor='#222222',
-                                  font_color='#999999'
-                              )))
+                dbc.Row([
+                    dbc.Col(dbc.Table([html.Thead(html.Tr([html.Th("Pos"),
+                                                           html.Th("Driver"),
+                                                           html.Th("Gap from leader")])),
+                                      html.Tbody(table_rows)],
+                                      id='live-gaps-table',
+                                      striped=True, bordered=True, hover=True), width = 2),
+                    dbc.Col(
+                        dcc.Graph(id='live-gaps-graph',
+                                  figure=go.Figure(
+                                      data=traces_live,
+                                      layout=go.Layout(
+                                          title=f'{event_title} - Live Gaps',
+                                          xaxis={'title': 'Time',
+                                                 'zeroline': False,
+                                                 'gridcolor': '#333333'},
+                                          yaxis={'title': 'Gap (seconds)',
+                                                 'autorange': 'reversed',
+                                                 'zeroline': False,
+                                                 'gridcolor': '#333333'},
+                                          hovermode='closest',
+                                          height=1000,
+                                          plot_bgcolor='#111111',
+                                          paper_bgcolor='#222222',
+                                          font_color='#999999'
+                                      ))), width = 10
+                    )
+                ])
             ])
         ]
     ),
