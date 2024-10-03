@@ -14,18 +14,24 @@ class RaceData:
     def __init__(self, race_id = 'latest'):
         self.__race_id = race_id
         self.__server = 'https://api.openf1.org/v1/'
+        self.__data_races_year = {}
+        self.__data_race_event = {}
+        self.__data_drivers = {}
+        self.__data_driver_laps = {}
+        self.__data_driver_positions = {}
+        self.__data_driver_intervals = {}
 
     def __api_request(self, request_text):
     # Perform API request to get the latest data from the server
         try:
             response = requests.get(f'{self.__server}{request_text}')
             if response.status_code == 200:
-                if len(response.json()) == 0:
+                data = response.json()
+                if len(data) == 0:
                     self.__log_entry(request_text,'Server response empty')
                     return False
-                self.__data = response.json()
                 self.__log_entry(request_text,'Success')
-                return True
+                return data
             else:
                 self.__log_entry(request_text,f'Server response: {response.status_code}')
                 return False
@@ -40,24 +46,27 @@ class RaceData:
     def get_races_of_year(self, year = 2024):
     # returns a dict with races (+sprints) of a specific year
         races = {}
-        if self.__api_request(f'sessions?session_type=Race&year={year}'):
-            for race_item in self.__data:
+        self.__data_races_year = self.__api_request(f'sessions?session_type=Race&year={year}')
+        if self.__data_races_year:
+            for race_item in self.__data_races_year:
                 races[race_item['session_key']] = race_item
         return races
 
     def get_race_event(self):
     # returns a dict with race event data
         race_event = {}
-        if self.__api_request(f'sessions?session_key={self.__race_id}'):
-            for race_event_item in self.__data: #using for but this should only be 1 line
+        self.__data_race_event = self.__api_request(f'sessions?session_key={self.__race_id}')
+        if self.__data_race_event:
+            for race_event_item in self.__data_race_event: #using for but this should only be 1 line
                 race_event = race_event_item
         return race_event
 
     def get_drivers(self):
     # per driver (id is number), returns a dict with listed data
         drivers = {}
-        if self.__api_request(f'drivers?session_key={self.__race_id}'):
-            for driver_item in self.__data:
+        self.__data_drivers = self.__api_request(f'drivers?session_key={self.__race_id}')
+        if self.__data_drivers:
+            for driver_item in self.__data_drivers:
                 drivers[driver_item['driver_number']] = {
                     'driver_number': driver_item['driver_number'],
                     'country_code': driver_item['country_code'],
@@ -73,8 +82,9 @@ class RaceData:
     def get_driver_laps(self):
     # per driver (id is number), returns a dict with lap: lap time
         driver_laps = {}
-        if self.__api_request(f'laps?session_key={self.__race_id}'):
-            for lap_item in self.__data:
+        self.__data_driver_laps = self.__api_request(f'laps?session_key={self.__race_id}')
+        if self.__data_driver_laps:
+            for lap_item in self.__data_driver_laps:
                 if lap_item['driver_number'] not in driver_laps:
                     if lap_item['lap_number'] == 2:
                         lap_start_iso_time = parser.isoparse(lap_item['date_start'])
@@ -90,8 +100,9 @@ class RaceData:
     def get_driver_positions(self):
     # per driver (id is number), returns a dict with positions over time, and the current position
         driver_positions = {}
-        if self.__api_request(f'position?session_key={self.__race_id}'):
-            for position_item in self.__data:
+        self.__data_driver_positions = self.__api_request(f'position?session_key={self.__race_id}')
+        if self.__data_driver_positions:
+            for position_item in self.__data_driver_positions:
                 if position_item['driver_number'] not in driver_positions:
                     driver_positions[position_item['driver_number']] = {}
                 driver_positions[position_item['driver_number']]['current'] = position_item['position']
@@ -101,8 +112,9 @@ class RaceData:
     def get_driver_intervals(self):
     # per driver (id is number), returns a dict with time: gap from leader
         driver_intervals = {}
-        if self.__api_request(f'intervals?session_key={self.__race_id}'):
-            for interval_item in self.__data:
+        self.__data_driver_intervals = self.__api_request(f'intervals?session_key={self.__race_id}')
+        if self.__data_driver_intervals:
+            for interval_item in self.__data_driver_intervals:
                 if interval_item['driver_number'] not in driver_intervals:
                     driver_intervals[interval_item['driver_number']] = {}
                 if utils.is_float(interval_item['gap_to_leader']):
@@ -112,25 +124,26 @@ class RaceData:
     def __process_laps(self, operation):
     # per lap, returns a list with processed lap times
         avg_laps = {}
-        for lap_item in self.__data:
-            if utils.is_float(lap_item['lap_duration']):
-                if lap_item['lap_number'] not in avg_laps:
-                    avg_laps[lap_item['lap_number']] = []
-                if lap_item['lap_number'] == 2:
-                    avg_laps[0] = [0.0]
-                    if 1 not in avg_laps:
-                        avg_laps[1] = []
-                    lap_start_iso_time = parser.isoparse(lap_item['date_start'])
-                    avg_laps[1].append(float(lap_start_iso_time.strftime("%M")) * 60
-                                       + float(lap_start_iso_time.strftime("%S.%f")))
-                avg_laps[lap_item['lap_number']].append(lap_item['lap_duration'])
-        match operation:
-            case Operation.AVG:
-                for key in avg_laps.keys():
-                    avg_laps[key] = round(sum(avg_laps[key]) / len(avg_laps[key]), 3)
-            case Operation.MEDIAN:
-                for key in avg_laps.keys():
-                    avg_laps[key] = round(median(avg_laps[key]), 3)
+        if self.__data_driver_laps:
+            for lap_item in self.__data_driver_laps:
+                if utils.is_float(lap_item['lap_duration']):
+                    if lap_item['lap_number'] not in avg_laps:
+                        avg_laps[lap_item['lap_number']] = []
+                    if lap_item['lap_number'] == 2:
+                        avg_laps[0] = [0.0]
+                        if 1 not in avg_laps:
+                            avg_laps[1] = []
+                        lap_start_iso_time = parser.isoparse(lap_item['date_start'])
+                        avg_laps[1].append(float(lap_start_iso_time.strftime("%M")) * 60
+                                           + float(lap_start_iso_time.strftime("%S.%f")))
+                    avg_laps[lap_item['lap_number']].append(lap_item['lap_duration'])
+            match operation:
+                case Operation.AVG:
+                    for key in avg_laps.keys():
+                        avg_laps[key] = round(sum(avg_laps[key]) / len(avg_laps[key]), 3)
+                case Operation.MEDIAN:
+                    for key in avg_laps.keys():
+                        avg_laps[key] = round(median(avg_laps[key]), 3)
         return avg_laps
 
     def get_driver_diff_laps(self, operation = Operation.MEDIAN, fixed_lap_duration = 90):

@@ -17,29 +17,10 @@ interval = 30 #update every x seconds
 # drivers = get_drivers(mock_drivers_data)
 
 default_race = RaceData()
-
 drivers = default_race.get_drivers()
-
 default_event = default_race.get_race_event()
 event_title = f'{default_event["country_name"]} {default_event["year"]} - {default_event["location"]}'
 
-# event_title = 'Grand Prix'
-# try:
-#     response = requests.get(f'https://api.openf1.org/v1/meetings?meeting_key=latest')
-#     if response.status_code == 200:
-#         if len(response.json()) == 0:
-#             print(f"[{str(datetime.now())}] Server response empty")
-#         else:
-#             event_title = response.json()[0]['meeting_official_name']
-#     else:
-#         print(f"[{str(datetime.now())}] Server response: {response.status_code}")
-# except Exception as e:
-#     print(f"[{str(datetime.now())}] Error retrieving data: {e}")
-
-# Opening JSON files with mock data
-# with open('mock_data/baku.json') as json_file:
-#     mock_data = json.load(json_file)
-# data = mock_data #TODO: data should still be initialized
 # Prepare the traces for the line plot
 traces = []
 for driver in drivers.values():
@@ -53,8 +34,7 @@ for driver in drivers.values():
 
 driver_positions = default_race.get_driver_positions()
 driver_positions_table = {}
-# with open('mock_data/live_gaps_singapore.json') as json_file:
-#     temp_data = json.load(json_file)
+
 data_live = default_race.get_driver_intervals()
 table_rows = []
 traces_live = []
