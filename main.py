@@ -8,7 +8,7 @@ from numpy import cumsum
 
 from src import utils
 from src.race_data import RaceData
-from src.utils import current_year
+from src.utils import current_year, is_float
 
 interval = 30 #update every x seconds
 
@@ -77,7 +77,8 @@ tab2_content = html.Div([
                 dbc.Row([
                     dbc.Col(dbc.Table([html.Thead(html.Tr([html.Th("Pos"),
                                                            html.Th("Driver"),
-                                                           html.Th("Gap from leader")])),
+                                                           html.Th("Gap (Leader)"),
+                                                           html.Th("Gap (Interval)")])),
                                       html.Tbody(id='live-gaps-table')],
                                       striped=True, bordered=True, hover=True), width = 2),
                     dbc.Col(
@@ -159,7 +160,6 @@ def update_graphs(_, in_race, race_trace_graph, live_gaps_graph, live_gaps_table
         race = RaceData(in_race)
         race_trace_data = race.get_driver_diff_laps()
         live_gaps_data = race.get_driver_intervals()
-
         if len(race_trace_data) > 0:
             race_trace_graph = go.Figure(race_trace_graph)
             live_gaps_graph = go.Figure(live_gaps_graph)
@@ -198,23 +198,35 @@ def update_graphs(_, in_race, race_trace_graph, live_gaps_graph, live_gaps_table
                                                selector=({'name':out_drivers[driver_id]['name_acronym']}))
 
             for driver_id, gaps in live_gaps_data.items():
-                y_trace = list(gaps.values())
-                live_gaps_graph.update_traces(dict(x=list(gaps.keys()),
-                                                   y=y_trace),
+                gap_leader = next(reversed(gaps['leader'].values())) #last gap in the series
+                gap_interval = next(reversed(gaps['interval'].values())) #last gap in the series
+                live_gaps_graph.update_traces(dict(x=list(gaps['leader'].keys()),
+                                                   y=list(y for y in gaps['leader'].values() if is_float(y))),
                                               selector=({'name':out_drivers[driver_id]['name_acronym']}))
                 driver_positions_table[driver_positions[driver_id]['current']] = {
                     'last_name': out_drivers[driver_id]['last_name'],
-                    'gap': y_trace[-1]}
+                    'gap_leader': gap_leader,
+                    'gap_interval': gap_interval}
 
             live_gaps_table = []
+            #TODO: this should go in a function with optional parameter a sub-list of drivers to return gaps amongst those
             for position, driver in sorted(driver_positions_table.items()):
-                gap_text = ''
-                if driver['gap'] > 0:
-                    gap_text = f"+{driver['gap']:.3f}"
+                if position == 1:
+                    gap_leader = gap_interval = ''
+                else:
+                    if is_float(driver['gap_leader']):
+                        gap_leader = f"+{driver['gap_leader']:.3f}"
+                    else:
+                        gap_leader = f"+{driver['gap_leader']}"
+                    if is_float(driver['gap_interval']):
+                        gap_interval = f"+{driver['gap_interval']:.3f}"
+                    else:
+                        gap_interval = f"+{driver['gap_interval']}"
                 live_gaps_table.append(html.Tr([html.Td(position),
-                                           html.Td(driver['last_name']),
-                                           html.Td(gap_text)]))
-
+                                                html.Td(driver['last_name']),
+                                                html.Td(gap_leader),
+                                                html.Td(gap_interval)]))
+    print(live_gaps_graph)
     return race_trace_graph, live_gaps_graph, live_gaps_table, last_update_text, out_drivers, show_graph
 
 @app.callback(

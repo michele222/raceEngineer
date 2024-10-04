@@ -116,9 +116,9 @@ class RaceData:
         if self.__data_driver_intervals:
             for interval_item in self.__data_driver_intervals:
                 if interval_item['driver_number'] not in driver_intervals:
-                    driver_intervals[interval_item['driver_number']] = {}
-                if utils.is_float(interval_item['gap_to_leader']):
-                    driver_intervals[interval_item['driver_number']][interval_item['date']] = interval_item['gap_to_leader']
+                    driver_intervals[interval_item['driver_number']] = {'leader': {}, 'interval': {}}
+                driver_intervals[interval_item['driver_number']]['leader'][interval_item['date']] = interval_item['gap_to_leader']
+                driver_intervals[interval_item['driver_number']]['interval'][interval_item['date']] = interval_item['interval']
         return driver_intervals
 
     def __process_laps(self, operation):
