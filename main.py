@@ -2,7 +2,7 @@ import dash
 import dash_bootstrap_components as dbc
 import plotly.graph_objs as go
 
-from dash import dcc, html
+from dash import dcc, html, ALL
 from dash.dependencies import Output, Input, State
 from numpy import cumsum
 
@@ -75,12 +75,18 @@ tab1_content = html.Div([
 
 tab2_content = html.Div([
                 dbc.Row([
-                    dbc.Col(dbc.Table([html.Thead(html.Tr([html.Th("Pos"),
+                    dbc.Col([dbc.Table([html.Thead(html.Tr([html.Th("Pos"),
                                                            html.Th("Driver"),
                                                            html.Th("Gap (Leader)"),
-                                                           html.Th("Gap (Interval)")])),
+                                                           html.Th("Gap (Interval)"),
+                                                            html.Th(dbc.Checkbox(
+                                                id="check-all-drivers",
+                                                value=True,
+                                            ), id='select_drivers')])),
                                       html.Tbody(id='live-gaps-table')],
-                                      striped=True, bordered=True, hover=True), width = 2),
+                                      striped=True, bordered=True, hover=True),
+                            dbc.Button("Filter drivers", id="btn-filter-drivers", size="sm")],
+                            width = 2),
                     dbc.Col(
                         dcc.Graph(id='live-gaps-graph',
                                   figure=go.Figure(
@@ -134,6 +140,32 @@ app.layout = html.Div([
     )
 ], className="m-4")
 
+
+def draw_drivers_gap_table(driver_positions_table):
+    gaps_table = []
+    #TODO: add optional parameter a sub-list of drivers to return gaps amongst those
+    for position, driver in sorted(driver_positions_table.items()):
+        if position == 1:
+            gap_leader = gap_interval = ''
+        else:
+            if is_float(driver['gap_leader']):
+                gap_leader = f"+{driver['gap_leader']:.3f}"
+            else:
+                gap_leader = f"+{driver['gap_leader']}"
+            if is_float(driver['gap_interval']):
+                gap_interval = f"+{driver['gap_interval']:.3f}"
+            else:
+                gap_interval = f"+{driver['gap_interval']}"
+        gaps_table.append(html.Tr([html.Td(position),
+                                        html.Td(driver['last_name']),
+                                        html.Td(gap_leader),
+                                        html.Td(gap_interval),
+                                        html.Td(dbc.Checkbox(
+                                                id={"type": "drivers-checkbox", "number": driver['number']},
+                                                #name="drivers-checkbox",
+                                                value=True,
+                                            ))]))
+    return gaps_table
 
 # Callback to update the graph
 @app.callback(Output('race-trace-graph', 'figure'),
@@ -205,28 +237,12 @@ def update_graphs(_, in_race, race_trace_graph, live_gaps_graph, live_gaps_table
                                               selector=({'name':out_drivers[driver_id]['name_acronym']}))
                 driver_positions_table[driver_positions[driver_id]['current']] = {
                     'last_name': out_drivers[driver_id]['last_name'],
+                    'number': driver_id,
                     'gap_leader': gap_leader,
                     'gap_interval': gap_interval}
 
-            live_gaps_table = []
-            #TODO: this should go in a function with optional parameter a sub-list of drivers to return gaps amongst those
-            for position, driver in sorted(driver_positions_table.items()):
-                if position == 1:
-                    gap_leader = gap_interval = ''
-                else:
-                    if is_float(driver['gap_leader']):
-                        gap_leader = f"+{driver['gap_leader']:.3f}"
-                    else:
-                        gap_leader = f"+{driver['gap_leader']}"
-                    if is_float(driver['gap_interval']):
-                        gap_interval = f"+{driver['gap_interval']:.3f}"
-                    else:
-                        gap_interval = f"+{driver['gap_interval']}"
-                live_gaps_table.append(html.Tr([html.Td(position),
-                                                html.Td(driver['last_name']),
-                                                html.Td(gap_leader),
-                                                html.Td(gap_interval)]))
-    print(live_gaps_graph)
+            live_gaps_table = draw_drivers_gap_table(driver_positions_table)
+
     return race_trace_graph, live_gaps_graph, live_gaps_table, last_update_text, out_drivers, show_graph
 
 @app.callback(
@@ -255,6 +271,22 @@ def change_year_select(year):
              'value': race_id}
             for (race_id, race_item) in races.items()]
 
+@app.callback(Output({"type": "drivers-checkbox", "number": ALL}, "value"),
+    Input("check-all-drivers", "value"),
+    State({"type": "drivers-checkbox", "number": ALL}, "value")
+)
+def select_all_drivers(value, checkboxes):
+    return [value] * len(checkboxes)
+
+@app.callback(
+    #Output('interval-component', 'interval'),
+    Input("btn-filter-drivers", "n_clicks"),
+    (State({"type": "drivers-checkbox", "number": ALL}, "id"),
+     State({"type": "drivers-checkbox", "number": ALL}, "value"))
+)
+def filter_drivers(_,checkboxes,checked):
+    ret = [driver["number"] for driver,selected in zip(checkboxes, checked) if selected]
+    print(ret)
 
 # Run the Dash app
 if __name__ == '__main__':
