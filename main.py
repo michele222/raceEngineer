@@ -82,7 +82,7 @@ tab2_content = html.Div([
                                                             html.Th(dbc.Checkbox(
                                                 id="check-all-drivers",
                                                 value=True,
-                                            ), id='select_drivers')])),
+                                            ))])),
                                       html.Tbody(id='live-gaps-table')],
                                       striped=True, bordered=True, hover=True),
                             dbc.Button("Filter drivers", id="btn-filter-drivers", size="sm")],
@@ -141,21 +141,35 @@ app.layout = html.Div([
 ], className="m-4")
 
 
-def draw_drivers_gap_table(driver_positions_table):
+def draw_drivers_gap_table(driver_positions_table, selection):
     gaps_table = []
-    #TODO: add optional parameter a sub-list of drivers to return gaps amongst those
+    empty_selection = len(selection) == 0
+    leader_is_set = False
+    gap_delta_leader = gap_delta_interval = 0
     for position, driver in sorted(driver_positions_table.items()):
-        if position == 1:
-            gap_leader = gap_interval = ''
+        if not leader_is_set:
+            if empty_selection or driver['number'] in selection:
+                gap_leader = gap_interval = '-'
+                leader_is_set = True
+                if is_float(driver['gap_leader']):
+                    gap_delta_leader = driver['gap_leader']
+            else:
+                gap_leader = gap_interval = ''
         else:
-            if is_float(driver['gap_leader']):
-                gap_leader = f"+{driver['gap_leader']:.3f}"
+            if empty_selection or driver['number'] in selection:
+                if is_float(driver['gap_leader']):
+                    gap_leader = f"+{(driver['gap_leader'] - gap_delta_leader):.3f}"
+                else:
+                    gap_leader = f"+{driver['gap_leader']}"
+                if is_float(driver['gap_interval']):
+                    gap_interval = f"+{driver['gap_interval'] + gap_delta_interval:.3f}"
+                else:
+                    gap_interval = f"+{driver['gap_interval']}"
+                gap_delta_interval = 0
             else:
-                gap_leader = f"+{driver['gap_leader']}"
-            if is_float(driver['gap_interval']):
-                gap_interval = f"+{driver['gap_interval']:.3f}"
-            else:
-                gap_interval = f"+{driver['gap_interval']}"
+                gap_leader = gap_interval = ''
+                if is_float(driver['gap_interval']):
+                    gap_delta_interval += driver['gap_interval']
         gaps_table.append(html.Tr([html.Td(position),
                                         html.Td(driver['last_name']),
                                         html.Td(gap_leader),
@@ -163,7 +177,7 @@ def draw_drivers_gap_table(driver_positions_table):
                                         html.Td(dbc.Checkbox(
                                                 id={"type": "drivers-checkbox", "number": driver['number']},
                                                 #name="drivers-checkbox",
-                                                value=True,
+                                                value=(driver['number'] in selection) or empty_selection,
                                             ))]))
     return gaps_table
 
@@ -175,14 +189,18 @@ def draw_drivers_gap_table(driver_positions_table):
               Output('drivers-data', 'data'),
               Output("main-fade", "is_in"),
               Input('interval-component', 'n_intervals'),
+              Input("btn-filter-drivers", "n_clicks"),
               Input('race-select', 'value'),
               State('race-trace-graph', 'figure'),
               State('live-gaps-graph', 'figure'),
               State('live-gaps-table', 'children'),
               State('last-update-text', 'children'),
               State('drivers-data', 'data'),
+              State({"type": "drivers-checkbox", "number": ALL}, "id"),
+              State({"type": "drivers-checkbox", "number": ALL}, "value")
+
 )
-def update_graphs(_, in_race, race_trace_graph, live_gaps_graph, live_gaps_table, last_update_text, in_drivers):
+def update_graphs(_, btn, in_race, race_trace_graph, live_gaps_graph, live_gaps_table, last_update_text, in_drivers, checkboxes, checked):
     show_graph = False
     if in_race is None:
         out_drivers = in_drivers
@@ -241,7 +259,8 @@ def update_graphs(_, in_race, race_trace_graph, live_gaps_graph, live_gaps_table
                     'gap_leader': gap_leader,
                     'gap_interval': gap_interval}
 
-            live_gaps_table = draw_drivers_gap_table(driver_positions_table)
+            filtered_drivers = [driver["number"] for driver, selected in zip(checkboxes, checked) if selected]
+            live_gaps_table = draw_drivers_gap_table(driver_positions_table, filtered_drivers)
 
     return race_trace_graph, live_gaps_graph, live_gaps_table, last_update_text, out_drivers, show_graph
 
@@ -276,17 +295,19 @@ def change_year_select(year):
     State({"type": "drivers-checkbox", "number": ALL}, "value")
 )
 def select_all_drivers(value, checkboxes):
+    if dash.ctx.triggered_id is None:
+        return checkboxes
     return [value] * len(checkboxes)
 
-@app.callback(
-    #Output('interval-component', 'interval'),
-    Input("btn-filter-drivers", "n_clicks"),
-    (State({"type": "drivers-checkbox", "number": ALL}, "id"),
-     State({"type": "drivers-checkbox", "number": ALL}, "value"))
-)
-def filter_drivers(_,checkboxes,checked):
-    ret = [driver["number"] for driver,selected in zip(checkboxes, checked) if selected]
-    print(ret)
+# @app.callback(
+#     #Output('interval-component', 'interval'),
+#     Input("btn-filter-drivers", "n_clicks"),
+#     (State({"type": "drivers-checkbox", "number": ALL}, "id"),
+#      State({"type": "drivers-checkbox", "number": ALL}, "value"))
+# )
+# def filter_drivers(_,checkboxes,checked):
+#     ret = [driver["number"] for driver,selected in zip(checkboxes, checked) if selected]
+#     print(ret)
 
 # Run the Dash app
 if __name__ == '__main__':
