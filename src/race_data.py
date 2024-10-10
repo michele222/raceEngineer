@@ -112,7 +112,7 @@ class RaceData:
     def get_driver_intervals(self):
     # per driver (id is number), returns a dict with time: gap from leader
         driver_intervals = {}
-        self.__data_driver_intervals = self.__api_request(f'intervals?session_key={self.__race_id}')
+        self.__data_driver_intervals = self.__api_request(f'intervals?session_key={self.__race_id}')#&date>=2024-09-22T12:52:11&date<=2024-09-22T12:55:11')
         if self.__data_driver_intervals:
             for interval_item in self.__data_driver_intervals:
                 if interval_item['driver_number'] not in driver_intervals:

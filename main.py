@@ -48,28 +48,7 @@ tab1_content = html.Div([
                     n_intervals=0,
                     disabled=True
                 ),
-                dcc.Store(id='drivers-data', data={}),
-                html.Small(id = "last-update-text", className = "text-muted"),
-                dbc.Checkbox(
-                    id="live-update-checkbox",
-                    label="Live updates",
-                    value=False,
-                ),
-                dbc.Fade(
-                    dbc.Card(
-                        dbc.CardBody([
-                            html.Label("Update interval (seconds)"),
-                            dbc.Select(list(range(5, 61, 5)),
-                                       interval,
-                                       id="interval-select",
-                                       )
-                        ]),
-                        style={"width": "18rem"},
-                    ),
-                    id="live-update-fade",
-                    is_in=False,
-                    appear=True,
-                )
+                dcc.Store(id='drivers-data', data={})
             ])
 
 
@@ -124,11 +103,66 @@ app.layout = html.Div([
                        current_year(),
                        id="year-select",
                        size="sm",
-                       ), width = 1),
+                       ), width = "auto"),
             dbc.Col(dbc.Select(placeholder="Select a race",
                        id="race-select",
                        size="sm",
-                       ), width = 11)
+                       ), width = "auto"),
+            dbc.Col(
+                dbc.Fade(
+                    dbc.Button("Refresh", id="btn-refresh", size="sm"),
+                    id="btn-refresh-fade",
+                    is_in=False,
+                    appear=True
+                ), width = "auto"),
+            dbc.Col(html.Small(id = "last-update-text", className = "text-muted"), width = "auto"),
+            dbc.Col(
+                dbc.Fade(
+                    dbc.Checkbox(
+                        id="live-update-checkbox",
+                        label="Live updates",
+                        value=False
+                    ),
+                    id="live-update-checkbox-fade",
+                    is_in=False,
+                    appear=True
+                ), width = "auto"),
+            dbc.Col(
+                dbc.Fade(
+                    dbc.Label("Refresh rate (seconds)"),
+                    id="live-update-label-fade",
+                    is_in=False,
+                    appear=True
+                ), width = "auto"),
+            dbc.Col(
+                dbc.Fade(
+                    dbc.Select(list(range(5, 61, 5)),
+                               interval,
+                               id="interval-select",
+                               size="sm"
+                               ),
+                    id="live-update-fade",
+                    is_in=False,
+                    appear=True,
+                ), width = "auto"),
+            dbc.Col(
+                dbc.Fade(
+                    dbc.Label("Data interval (minutes)"),
+                    id="live-interval-label-fade",
+                    is_in=False,
+                    appear=True
+                ), width = "auto"),
+            dbc.Col(
+                dbc.Fade(
+                    dbc.Select(list(range(2, 31, 2)),
+                               2,
+                               id="live-interval-select",
+                               size="sm"
+                               ),
+                    id="live-interval-fade",
+                    is_in=False,
+                    appear=True,
+                ), width = "auto")
         ], justify="start"),
     ]),
     dbc.Fade(
@@ -188,8 +222,11 @@ def draw_drivers_gap_table(driver_positions_table, selection):
               Output('last-update-text', 'children'),
               Output('drivers-data', 'data'),
               Output("main-fade", "is_in"),
+              Output("btn-refresh-fade", "is_in"),
+              Output("live-update-checkbox-fade", "is_in"),
               Input('interval-component', 'n_intervals'),
               Input("btn-filter-drivers", "n_clicks"),
+              Input("btn-refresh", "n_clicks"),
               Input('race-select', 'value'),
               State('race-trace-graph', 'figure'),
               State('live-gaps-graph', 'figure'),
@@ -200,7 +237,7 @@ def draw_drivers_gap_table(driver_positions_table, selection):
               State({"type": "drivers-checkbox", "number": ALL}, "value")
 
 )
-def update_graphs(_, btn, in_race, race_trace_graph, live_gaps_graph, live_gaps_table, last_update_text, in_drivers, checkboxes, checked):
+def update_graphs(_, _btn1, _btn2, in_race, race_trace_graph, live_gaps_graph, live_gaps_table, last_update_text, in_drivers, checkboxes, checked):
     show_graph = False
     if in_race is None:
         out_drivers = in_drivers
@@ -262,15 +299,18 @@ def update_graphs(_, btn, in_race, race_trace_graph, live_gaps_graph, live_gaps_
             filtered_drivers = [driver["number"] for driver, selected in zip(checkboxes, checked) if selected]
             live_gaps_table = draw_drivers_gap_table(driver_positions_table, filtered_drivers)
 
-    return race_trace_graph, live_gaps_graph, live_gaps_table, last_update_text, out_drivers, show_graph
+    return race_trace_graph, live_gaps_graph, live_gaps_table, last_update_text, out_drivers, show_graph, show_graph, show_graph
 
 @app.callback(
     Output("live-update-fade", "is_in"),
+    Output("live-update-label-fade", "is_in"),
+    Output("live-interval-fade", "is_in"),
+    Output("live-interval-label-fade", "is_in"),
     Output('interval-component', 'disabled'),
     Input("live-update-checkbox", "value"),
 )
 def toggle_fade(live_update_checked):
-    return live_update_checked, not live_update_checked
+    return live_update_checked, live_update_checked, live_update_checked, live_update_checked, not live_update_checked
 
 @app.callback(
     Output('interval-component', 'interval'),
@@ -298,16 +338,6 @@ def select_all_drivers(value, checkboxes):
     if dash.ctx.triggered_id is None:
         return checkboxes
     return [value] * len(checkboxes)
-
-# @app.callback(
-#     #Output('interval-component', 'interval'),
-#     Input("btn-filter-drivers", "n_clicks"),
-#     (State({"type": "drivers-checkbox", "number": ALL}, "id"),
-#      State({"type": "drivers-checkbox", "number": ALL}, "value"))
-# )
-# def filter_drivers(_,checkboxes,checked):
-#     ret = [driver["number"] for driver,selected in zip(checkboxes, checked) if selected]
-#     print(ret)
 
 # Run the Dash app
 if __name__ == '__main__':
