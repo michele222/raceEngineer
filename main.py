@@ -8,6 +8,7 @@ from numpy import cumsum
 
 from src import utils
 from src.race_data import RaceData
+from src.enums import DataInterval
 from src.utils import current_year, is_float
 
 interval = 30 #update every x seconds
@@ -154,8 +155,8 @@ app.layout = html.Div([
                 ), width = "auto"),
             dbc.Col(
                 dbc.Fade(
-                    dbc.Select(list(range(2, 31, 2)),
-                               2,
+                    dbc.Select(list(range(2, 31, 2)) + [DataInterval.OFF.value],
+                               DataInterval.OFF.value,
                                id="live-interval-select",
                                size="sm"
                                ),
@@ -232,12 +233,24 @@ def draw_drivers_gap_table(driver_positions_table, selection):
               State('live-gaps-graph', 'figure'),
               State('live-gaps-table', 'children'),
               State('last-update-text', 'children'),
+              State('live-interval-select', 'value'),
               State('drivers-data', 'data'),
               State({"type": "drivers-checkbox", "number": ALL}, "id"),
               State({"type": "drivers-checkbox", "number": ALL}, "value")
 
 )
-def update_graphs(_, _btn1, _btn2, in_race, race_trace_graph, live_gaps_graph, live_gaps_table, last_update_text, in_drivers, checkboxes, checked):
+def update_graphs(_,
+                  _btn1,
+                  _btn2,
+                  in_race,
+                  race_trace_graph,
+                  live_gaps_graph,
+                  live_gaps_table,
+                  last_update_text,
+                  live_interval,
+                  in_drivers,
+                  checkboxes,
+                  checked):
     show_graph = False
     if in_race is None:
         out_drivers = in_drivers
@@ -246,11 +259,11 @@ def update_graphs(_, _btn1, _btn2, in_race, race_trace_graph, live_gaps_graph, l
         out_drivers = {int(i):v for i,v in in_drivers.items()}
         race = RaceData(in_race)
         race_trace_data = race.get_driver_diff_laps()
-        live_gaps_data = race.get_driver_intervals()
-        if len(race_trace_data) > 0:
+        live_gaps_data = race.get_driver_intervals(live_interval)
+        if len(race_trace_data) > 0 and len(live_gaps_data) > 0:
             race_trace_graph = go.Figure(race_trace_graph)
             live_gaps_graph = go.Figure(live_gaps_graph)
-            last_update_text = f"Last updated on {utils.timestamp()}"
+            last_update_text = f"Last updated on {utils.timestamp_formatted()}"
             show_graph = True
             driver_positions = race.get_driver_positions()
             driver_positions_table = {}

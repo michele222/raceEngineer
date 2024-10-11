@@ -5,8 +5,8 @@ from dateutil import parser
 from statistics import median
 
 import src.utils as utils
-from src.enums import Operation
-from src.utils import get_hex_color
+from src.enums import Operation, DataInterval
+from src.utils import get_hex_color, time_iso
 
 
 class RaceData:
@@ -41,7 +41,7 @@ class RaceData:
 
     def __log_entry(self, request_text, text):
     # prints a message in the log including the API request
-        print(f"[{utils.timestamp()} {self.__server}{request_text}] {text}")
+        print(f"[{utils.timestamp_formatted()} {self.__server}{request_text}] {text}")
 
     def get_races_of_year(self, year = 2024):
     # returns a dict with races (+sprints) of a specific year
@@ -109,10 +109,14 @@ class RaceData:
                 driver_positions[position_item['driver_number']][position_item['date']] = position_item['position']
         return driver_positions
 
-    def get_driver_intervals(self):
+    def get_driver_intervals(self, data_filter = DataInterval.OFF.value):
     # per driver (id is number), returns a dict with time: gap from leader
         driver_intervals = {}
-        self.__data_driver_intervals = self.__api_request(f'intervals?session_key={self.__race_id}')#&date>=2024-09-22T12:52:11&date<=2024-09-22T12:55:11')
+        if data_filter == DataInterval.OFF.value or not data_filter.isnumeric():
+            param = ''
+        else:
+            param = f'&date>={time_iso(-int(data_filter) * 60)}'
+        self.__data_driver_intervals = self.__api_request(f'intervals?session_key={self.__race_id}{param}')
         if self.__data_driver_intervals:
             for interval_item in self.__data_driver_intervals:
                 if interval_item['driver_number'] not in driver_intervals:
