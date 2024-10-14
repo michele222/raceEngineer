@@ -1,5 +1,3 @@
-import json
-
 import requests
 from dateutil import parser
 from statistics import median
@@ -11,7 +9,7 @@ from src.utils import get_hex_color, time_iso
 
 class RaceData:
 
-    def __init__(self, race_id = 'latest'):
+    def __init__(self, race_id='latest'):
         self.__race_id = race_id
         self.__server = 'https://api.openf1.org/v1/'
         self.__data_races_year = {}
@@ -22,29 +20,29 @@ class RaceData:
         self.__data_driver_intervals = {}
 
     def __api_request(self, request_text):
-    # Perform API request to get the latest data from the server
+        # Perform API request to get the latest data from the server
         try:
             response = requests.get(f'{self.__server}{request_text}')
             if response.status_code == 200:
                 data = response.json()
                 if len(data) == 0:
-                    self.__log_entry(request_text,'Server response empty')
+                    self.__log_entry(request_text, 'Server response empty')
                     return False
-                self.__log_entry(request_text,'Success')
+                self.__log_entry(request_text, 'Success')
                 return data
             else:
-                self.__log_entry(request_text,f'Server response: {response.status_code}')
+                self.__log_entry(request_text, f'Server response: {response.status_code}')
                 return False
         except Exception as e:
-            self.__log_entry(request_text,f'Error retrieving data: {e}')
+            self.__log_entry(request_text, f'Error retrieving data: {e}')
             return False
 
     def __log_entry(self, request_text, text):
-    # prints a message in the log including the API request
+        # prints a message in the log including the API request
         print(f"[{utils.timestamp_formatted()} {self.__server}{request_text}] {text}")
 
-    def get_races_of_year(self, year = 2024):
-    # returns a dict with races (+sprints) of a specific year
+    def get_races_of_year(self, year=2024):
+        # returns a dict with races (+sprints) of a specific year
         races = {}
         self.__data_races_year = self.__api_request(f'sessions?session_type=Race&year={year}')
         if self.__data_races_year:
@@ -53,16 +51,16 @@ class RaceData:
         return races
 
     def get_race_event(self):
-    # returns a dict with race event data
+        # returns a dict with race event data
         race_event = {}
         self.__data_race_event = self.__api_request(f'sessions?session_key={self.__race_id}')
         if self.__data_race_event:
-            for race_event_item in self.__data_race_event: #using for but this should only be 1 line
+            for race_event_item in self.__data_race_event:  # using for but this should only be 1 line
                 race_event = race_event_item
         return race_event
 
     def get_drivers(self):
-    # per driver (id is number), returns a dict with listed data
+        # per driver (id is number), returns a dict with listed data
         drivers = {}
         self.__data_drivers = self.__api_request(f'drivers?session_key={self.__race_id}')
         if self.__data_drivers:
@@ -80,7 +78,7 @@ class RaceData:
         return drivers
 
     def get_driver_laps(self):
-    # per driver (id is number), returns a dict with lap: lap time
+        # per driver (id is number), returns a dict with lap: lap time
         driver_laps = {}
         self.__data_driver_laps = self.__api_request(f'laps?session_key={self.__race_id}')
         if self.__data_driver_laps:
@@ -98,7 +96,7 @@ class RaceData:
         return driver_laps
 
     def get_driver_positions(self):
-    # per driver (id is number), returns a dict with positions over time, and the current position
+        # per driver (id is number), returns a dict with positions over time, and the current position
         driver_positions = {}
         self.__data_driver_positions = self.__api_request(f'position?session_key={self.__race_id}')
         if self.__data_driver_positions:
@@ -109,8 +107,8 @@ class RaceData:
                 driver_positions[position_item['driver_number']][position_item['date']] = position_item['position']
         return driver_positions
 
-    def get_driver_intervals(self, data_filter = DataInterval.OFF.value):
-    # per driver (id is number), returns a dict with time: gap from leader
+    def get_driver_intervals(self, data_filter=DataInterval.OFF.value):
+        # per driver (id is number), returns a dict with time: gap from leader
         driver_intervals = {}
         if data_filter == DataInterval.OFF.value or not data_filter.isnumeric():
             param = ''
@@ -121,12 +119,14 @@ class RaceData:
             for interval_item in self.__data_driver_intervals:
                 if interval_item['driver_number'] not in driver_intervals:
                     driver_intervals[interval_item['driver_number']] = {'leader': {}, 'interval': {}}
-                driver_intervals[interval_item['driver_number']]['leader'][interval_item['date']] = interval_item['gap_to_leader']
-                driver_intervals[interval_item['driver_number']]['interval'][interval_item['date']] = interval_item['interval']
+                driver_intervals[interval_item['driver_number']]['leader'][interval_item['date']] = interval_item[
+                    'gap_to_leader']
+                driver_intervals[interval_item['driver_number']]['interval'][interval_item['date']] = interval_item[
+                    'interval']
         return driver_intervals
 
     def __process_laps(self, operation):
-    # per lap, returns a list with processed lap times
+        # per lap, returns a list with processed lap times
         avg_laps = {}
         if self.__data_driver_laps:
             for lap_item in self.__data_driver_laps:
@@ -150,8 +150,8 @@ class RaceData:
                         avg_laps[key] = round(median(avg_laps[key]), 3)
         return avg_laps
 
-    def get_driver_diff_laps(self, operation = Operation.MEDIAN, fixed_lap_duration = 90):
-    # per driver (id is number), returns a dict with lap: lap time - median(lap time)
+    def get_driver_diff_laps(self, operation=Operation.MEDIAN, fixed_lap_duration=90):
+        # per driver (id is number), returns a dict with lap: lap time - median(lap time)
         driver_laps = self.get_driver_laps()
         if operation == Operation.FIXED:
             for driver, lap_times in driver_laps.items():
