@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import dash
 import dash_bootstrap_components as dbc
 from dash import Output, Input, State, ALL, html
@@ -11,22 +13,33 @@ from src.race_data import RaceData
 from src.utils import is_float
 
 
+@app.callback(Output('drivers-data-store', 'data'),
+              Input('race-select', 'value'),
+              prevent_initial_call=True
+              )
+def update_race_data(selected_race):
+    race = RaceData(selected_race)
+    drivers = race.get_drivers()
+    if not drivers:
+        raise dash.exceptions.PreventUpdate
+    return drivers
+
+
 @app.callback(Output('race-trace-graph', 'figure'),
               Output('live-gaps-graph', 'figure'),
               Output('live-gaps-table', 'children'),
               Output('last-update-text', 'children'),
-              Output('drivers-data-store', 'data'),
               Output("main-fade", "is_in"),
               Output("refresh-button-fade", "is_in"),
               Output("live-update-checkbox-fade", "is_in"),
               Input('refresh-timer', 'n_intervals'),
               Input("filter-drivers-button", "n_clicks"),
               Input("refresh-button", "n_clicks"),
-              Input('race-select', 'value'),
+              Input('drivers-data-store', 'data'),
+              State('race-select', 'value'),
               State('race-trace-graph', 'figure'),
               State('live-gaps-graph', 'figure'),
               State('data-interval-select', 'value'),
-              State('drivers-data-store', 'data'),
               State({"type": "drivers-checkbox", "number": ALL}, "id"),
               State({"type": "drivers-checkbox", "number": ALL}, "value"),
               prevent_initial_call=True
@@ -34,11 +47,11 @@ from src.utils import is_float
 def update_graphs(_refresh_timer,
                   _filter_btn,
                   _refresh_btn,
+                  stored_drivers_data,
                   selected_race,
                   race_trace_graph,
                   live_gaps_graph,
                   selected_data_interval,
-                  stored_drivers_data,
                   checkboxes,
                   checked):
     race = RaceData(selected_race)
@@ -55,13 +68,12 @@ def update_graphs(_refresh_timer,
     driver_positions = race.get_driver_positions()
     driver_positions_table = {}
     activator = dash.ctx.triggered_id
-    if activator == 'race-select':
+    if activator == 'drivers-data-store':
         event = race.get_race_event()
         race_trace_graph.layout.title = f'{event["country_name"]} {event["year"]} - {event["location"]}'
         live_gaps_graph.layout.title = race_trace_graph.layout.title
         race_trace_graph.data = []
         live_gaps_graph.data = []
-        drivers = race.get_drivers()
         for driver in drivers.values():
             race_trace_graph.add_trace(go.Scattergl(
                 x=[0],  # X-axis: lap numbers
@@ -83,7 +95,6 @@ def update_graphs(_refresh_timer,
         race_trace_graph.update_traces(dict(x=list(lap_times.keys()),
                                             y=cumsum(list(lap_times.values()))),
                                        selector=({'name': drivers[driver_id]['name_acronym']}))
-
     for driver_id, gaps in live_gaps_data.items():
         gap_leader = next(reversed(gaps['leader'].values()))  # last gap in the series
         gap_interval = next(reversed(gaps['interval'].values()))  # last gap in the series
@@ -95,11 +106,9 @@ def update_graphs(_refresh_timer,
             'number': driver_id,
             'gap_leader': gap_leader,
             'gap_interval': gap_interval}
-
     filtered_drivers = [driver["number"] for driver, selected in zip(checkboxes, checked) if selected]
     live_gaps_table = draw_drivers_gap_table(driver_positions_table, filtered_drivers)
-
-    return race_trace_graph, live_gaps_graph, live_gaps_table, last_update_text, drivers, True, True, True
+    return race_trace_graph, live_gaps_graph, live_gaps_table, last_update_text, True, True, True
 
 
 @app.callback(
