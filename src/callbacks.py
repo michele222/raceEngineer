@@ -6,6 +6,7 @@ from plotly import graph_objs as go
 
 from src import utils
 from src.app import app
+from src.enums import DataInterval
 from src.race_data import RaceData
 from src.utils import is_float
 
@@ -24,12 +25,11 @@ from src.utils import is_float
               Input('race-select', 'value'),
               State('race-trace-graph', 'figure'),
               State('live-gaps-graph', 'figure'),
-              State('live-gaps-table', 'children'),
-              State('last-update-text', 'children'),
               State('data-interval-select', 'value'),
               State('drivers-data-store', 'data'),
               State({"type": "drivers-checkbox", "number": ALL}, "id"),
-              State({"type": "drivers-checkbox", "number": ALL}, "value")
+              State({"type": "drivers-checkbox", "number": ALL}, "value"),
+              prevent_initial_call=True
               )
 def update_graphs(_refresh_timer,
                   _filter_btn,
@@ -37,74 +37,69 @@ def update_graphs(_refresh_timer,
                   selected_race,
                   race_trace_graph,
                   live_gaps_graph,
-                  live_gaps_table,
-                  last_update_text,
                   selected_data_interval,
                   stored_drivers_data,
                   checkboxes,
                   checked):
-    show_page = False
-    if selected_race is None:
-        drivers = stored_drivers_data
-    else:
-        activator = dash.ctx.triggered_id
-        drivers = {int(i): v for i, v in stored_drivers_data.items()}
-        race = RaceData(selected_race)
-        race_trace_data = race.get_driver_diff_laps()
-        live_gaps_data = race.get_driver_intervals(selected_data_interval)
-        if len(race_trace_data) > 0 and len(live_gaps_data) > 0:
-            race_trace_graph = go.Figure(race_trace_graph)
-            live_gaps_graph = go.Figure(live_gaps_graph)
-            last_update_text = f"Last updated on {utils.timestamp_formatted()}"
-            show_page = True
-            driver_positions = race.get_driver_positions()
-            driver_positions_table = {}
+    race = RaceData(selected_race)
+    race_trace_data = race.get_driver_diff_laps()
+    if not race_trace_data:
+        raise dash.exceptions.PreventUpdate
+    live_gaps_data = race.get_driver_intervals(selected_data_interval)
+    if not live_gaps_data:
+        raise dash.exceptions.PreventUpdate
+    drivers = {int(i): v for i, v in stored_drivers_data.items()}
+    race_trace_graph = go.Figure(race_trace_graph)
+    live_gaps_graph = go.Figure(live_gaps_graph)
+    last_update_text = f"Last updated on {utils.timestamp_formatted()}"
+    driver_positions = race.get_driver_positions()
+    driver_positions_table = {}
+    activator = dash.ctx.triggered_id
+    if activator == 'race-select':
+        event = race.get_race_event()
+        race_trace_graph.layout.title = f'{event["country_name"]} {event["year"]} - {event["location"]}'
+        live_gaps_graph.layout.title = race_trace_graph.layout.title
+        race_trace_graph.data = []
+        live_gaps_graph.data = []
+        drivers = race.get_drivers()
+        for driver in drivers.values():
+            race_trace_graph.add_trace(go.Scattergl(
+                x=[0],  # X-axis: lap numbers
+                y=[0],  # Y-axis: cumulated lap times
+                mode='lines+markers',
+                name=driver['name_acronym'],
+                line_color=driver['team_colour']
+            ))
+            live_gaps_graph.add_trace(go.Scattergl(
+                x=[],  # X-axis: lap numbers
+                y=[],  # Y-axis: cumulated lap times
+                mode='lines',
+                name=driver['name_acronym'],
+                line_color=driver['team_colour']
+            ))
 
-            if activator == 'race-select':
-                event = race.get_race_event()
-                race_trace_graph.layout.title = f'{event["country_name"]} {event["year"]} - {event["location"]}'
-                live_gaps_graph.layout.title = race_trace_graph.layout.title
-                race_trace_graph.data = []
-                live_gaps_graph.data = []
-                drivers = race.get_drivers()
-                for driver in drivers.values():
-                    race_trace_graph.add_trace(go.Scattergl(
-                        x=[0],  # X-axis: lap numbers
-                        y=[0],  # Y-axis: cumulated lap times
-                        mode='lines+markers',
-                        name=driver['name_acronym'],
-                        line_color=driver['team_colour']
-                    ))
-                    live_gaps_graph.add_trace(go.Scattergl(
-                        x=[],  # X-axis: lap numbers
-                        y=[],  # Y-axis: cumulated lap times
-                        mode='lines',
-                        name=driver['name_acronym'],
-                        line_color=driver['team_colour']
-                    ))
+    # Update the traces for the line plot
+    for driver_id, lap_times in race_trace_data.items():
+        race_trace_graph.update_traces(dict(x=list(lap_times.keys()),
+                                            y=cumsum(list(lap_times.values()))),
+                                       selector=({'name': drivers[driver_id]['name_acronym']}))
 
-            # Update the traces for the line plot
-            for driver_id, lap_times in race_trace_data.items():
-                race_trace_graph.update_traces(dict(x=list(lap_times.keys()),
-                                                    y=cumsum(list(lap_times.values()))),
-                                               selector=({'name': drivers[driver_id]['name_acronym']}))
+    for driver_id, gaps in live_gaps_data.items():
+        gap_leader = next(reversed(gaps['leader'].values()))  # last gap in the series
+        gap_interval = next(reversed(gaps['interval'].values()))  # last gap in the series
+        live_gaps_graph.update_traces(dict(x=list(gaps['leader'].keys()),
+                                           y=list(y for y in gaps['leader'].values() if is_float(y))),
+                                      selector=({'name': drivers[driver_id]['name_acronym']}))
+        driver_positions_table[driver_positions[driver_id]['current']] = {
+            'last_name': drivers[driver_id]['last_name'],
+            'number': driver_id,
+            'gap_leader': gap_leader,
+            'gap_interval': gap_interval}
 
-            for driver_id, gaps in live_gaps_data.items():
-                gap_leader = next(reversed(gaps['leader'].values()))  # last gap in the series
-                gap_interval = next(reversed(gaps['interval'].values()))  # last gap in the series
-                live_gaps_graph.update_traces(dict(x=list(gaps['leader'].keys()),
-                                                   y=list(y for y in gaps['leader'].values() if is_float(y))),
-                                              selector=({'name': drivers[driver_id]['name_acronym']}))
-                driver_positions_table[driver_positions[driver_id]['current']] = {
-                    'last_name': drivers[driver_id]['last_name'],
-                    'number': driver_id,
-                    'gap_leader': gap_leader,
-                    'gap_interval': gap_interval}
+    filtered_drivers = [driver["number"] for driver, selected in zip(checkboxes, checked) if selected]
+    live_gaps_table = draw_drivers_gap_table(driver_positions_table, filtered_drivers)
 
-            filtered_drivers = [driver["number"] for driver, selected in zip(checkboxes, checked) if selected]
-            live_gaps_table = draw_drivers_gap_table(driver_positions_table, filtered_drivers)
-
-    return race_trace_graph, live_gaps_graph, live_gaps_table, last_update_text, drivers, show_page, show_page, show_page
+    return race_trace_graph, live_gaps_graph, live_gaps_table, last_update_text, drivers, True, True, True
 
 
 @app.callback(
@@ -113,18 +108,26 @@ def update_graphs(_refresh_timer,
     Output("data-interval-fade", "is_in"),
     Output("data-interval-label-fade", "is_in"),
     Output('refresh-timer', 'disabled'),
+    Output('data-interval-select', 'value'),
     Input("live-update-checkbox", "value"),
+    prevent_initial_call=True
 )
-def toggle_fade(live_update_checked):
-    return live_update_checked, live_update_checked, live_update_checked, live_update_checked, not live_update_checked
+def toggle_live_update(live_update_checked):
+    return (live_update_checked,
+            live_update_checked,
+            live_update_checked,
+            live_update_checked,
+            not live_update_checked,
+            DataInterval.OFF.value)
 
 
 @app.callback(
     Output('refresh-timer', 'interval'),
     Input("refresh-rate-select", "value"),
+    prevent_initial_call=True
 )
-def change_live_interval(interval):
-    return int(interval) * 1000
+def change_refresh_rate(refresh_rate):
+    return int(refresh_rate) * 1000
 
 
 @app.callback(
@@ -141,11 +144,10 @@ def change_year_select(year):
 
 @app.callback(Output({"type": "drivers-checkbox", "number": ALL}, "value"),
               Input("all-drivers-checkbox", "value"),
-              State({"type": "drivers-checkbox", "number": ALL}, "value")
+              State({"type": "drivers-checkbox", "number": ALL}, "value"),
+              prevent_initial_call=True
               )
 def select_all_drivers(value, checkboxes):
-    if dash.ctx.triggered_id is None:
-        return checkboxes
     return [value] * len(checkboxes)
 
 
