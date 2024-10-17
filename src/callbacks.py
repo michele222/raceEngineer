@@ -42,6 +42,7 @@ def update_race_data(selected_race):
               State('data-interval-select', 'value'),
               State({"type": "drivers-checkbox", "number": ALL}, "id"),
               State({"type": "drivers-checkbox", "number": ALL}, "value"),
+              running=[(Output("loading_indicator", "display"), "show", "hide")],
               prevent_initial_call=True
               )
 def update_graphs(_refresh_timer,
@@ -89,7 +90,6 @@ def update_graphs(_refresh_timer,
                 name=driver['name_acronym'],
                 line_color=driver['team_colour']
             ))
-
     # Update the traces for the line plot
     for driver_id, lap_times in race_trace_data.items():
         race_trace_graph.update_traces(dict(x=list(lap_times.keys()),

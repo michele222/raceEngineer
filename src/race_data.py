@@ -1,6 +1,8 @@
+from collections import defaultdict
+
 import requests
 from dateutil import parser
-from statistics import median
+from statistics import mean, median
 
 import src.utils as utils
 from src.enums import Operation, DataInterval
@@ -30,9 +32,8 @@ class RaceData:
                     return False
                 self.__log_entry(request_text, 'Success')
                 return data
-            else:
-                self.__log_entry(request_text, f'Server response: {response.status_code}')
-                return False
+            self.__log_entry(request_text, f'Server response: {response.status_code}')
+            return False
         except Exception as e:
             self.__log_entry(request_text, f'Error retrieving data: {e}')
             return False
@@ -79,37 +80,31 @@ class RaceData:
 
     def get_driver_laps(self):
         # per driver (id is number), returns a dict with lap: lap time
-        driver_laps = {}
+        driver_laps = defaultdict(lambda: {0: 0.0})
         self.__data_driver_laps = self.__api_request(f'laps?session_key={self.__race_id}')
         if self.__data_driver_laps:
             for lap_item in self.__data_driver_laps:
-                if lap_item['driver_number'] not in driver_laps:
-                    if lap_item['lap_number'] == 2:
-                        lap_start_iso_time = parser.isoparse(lap_item['date_start'])
-                        driver_laps[lap_item['driver_number']] = {
-                            0: 0.0,
-                            1: float(lap_start_iso_time.strftime("%M")) * 60
-                               + float(lap_start_iso_time.strftime("%S.%f"))
-                        }
+                if lap_item['lap_number'] == 2:
+                    lap_start_iso_time = parser.isoparse(lap_item['date_start'])
+                    driver_laps[lap_item['driver_number']][1] = (float(lap_start_iso_time.strftime("%M")) * 60
+                                                                 + float(lap_start_iso_time.strftime("%S.%f")))
                 if utils.is_float(lap_item['lap_duration']):
                     driver_laps[lap_item['driver_number']][lap_item['lap_number']] = lap_item['lap_duration']
         return driver_laps
 
     def get_driver_positions(self):
         # per driver (id is number), returns a dict with positions over time, and the current position
-        driver_positions = {}
+        driver_positions = defaultdict(dict)
         self.__data_driver_positions = self.__api_request(f'position?session_key={self.__race_id}')
         if self.__data_driver_positions:
             for position_item in self.__data_driver_positions:
-                if position_item['driver_number'] not in driver_positions:
-                    driver_positions[position_item['driver_number']] = {}
                 driver_positions[position_item['driver_number']]['current'] = position_item['position']
                 driver_positions[position_item['driver_number']][position_item['date']] = position_item['position']
         return driver_positions
 
     def get_driver_intervals(self, data_filter=DataInterval.OFF.value):
         # per driver (id is number), returns a dict with time: gap from leader
-        driver_intervals = {}
+        driver_intervals = defaultdict(lambda: {'leader': {}, 'interval': {}})
         if data_filter == DataInterval.OFF.value or not data_filter.isnumeric():
             param = ''
         else:
@@ -117,8 +112,6 @@ class RaceData:
         self.__data_driver_intervals = self.__api_request(f'intervals?session_key={self.__race_id}{param}')
         if self.__data_driver_intervals:
             for interval_item in self.__data_driver_intervals:
-                if interval_item['driver_number'] not in driver_intervals:
-                    driver_intervals[interval_item['driver_number']] = {'leader': {}, 'interval': {}}
                 driver_intervals[interval_item['driver_number']]['leader'][interval_item['date']] = interval_item[
                     'gap_to_leader']
                 driver_intervals[interval_item['driver_number']]['interval'][interval_item['date']] = interval_item[
@@ -127,27 +120,23 @@ class RaceData:
 
     def __process_laps(self, operation):
         # per lap, returns a list with processed lap times
-        avg_laps = {}
+        avg_laps = defaultdict(list)
         if self.__data_driver_laps:
             for lap_item in self.__data_driver_laps:
                 if utils.is_float(lap_item['lap_duration']):
-                    if lap_item['lap_number'] not in avg_laps:
-                        avg_laps[lap_item['lap_number']] = []
                     if lap_item['lap_number'] == 2:
                         avg_laps[0] = [0.0]
-                        if 1 not in avg_laps:
-                            avg_laps[1] = []
                         lap_start_iso_time = parser.isoparse(lap_item['date_start'])
                         avg_laps[1].append(float(lap_start_iso_time.strftime("%M")) * 60
                                            + float(lap_start_iso_time.strftime("%S.%f")))
                     avg_laps[lap_item['lap_number']].append(lap_item['lap_duration'])
             match operation:
                 case Operation.AVG:
-                    for key in avg_laps.keys():
-                        avg_laps[key] = round(sum(avg_laps[key]) / len(avg_laps[key]), 3)
+                    for lap in avg_laps.keys():
+                        avg_laps[lap] = round(mean(avg_laps[lap]), 3)
                 case Operation.MEDIAN:
-                    for key in avg_laps.keys():
-                        avg_laps[key] = round(median(avg_laps[key]), 3)
+                    for lap in avg_laps.keys():
+                        avg_laps[lap] = round(median(avg_laps[lap]), 3)
         return avg_laps
 
     def get_driver_diff_laps(self, operation=Operation.MEDIAN, fixed_lap_duration=90):

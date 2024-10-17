@@ -93,6 +93,7 @@ year_select = dbc.Select(list(range(current_year(), 2022, -1)), current_year(), 
 race_select = dbc.Select(placeholder="Select a race", id="race-select", size="sm")
 refresh_button = dbc.Button("Refresh", id="refresh-button", size="sm")
 refresh_button_fade = dbc.Fade(refresh_button, id="refresh-button-fade", is_in=False, appear=True)
+loading_indicator = dcc.Loading(id="loading_indicator", type="circle", display="hide")
 last_update_text = html.Small(id="last-update-text", className="text-muted")
 live_update_checkbox = dbc.Checkbox(id="live-update-checkbox", label="Live updates", value=False)
 live_update_checkbox_fade = dbc.Fade(live_update_checkbox, id="live-update-checkbox-fade", is_in=False, appear=True)
@@ -110,6 +111,7 @@ data_interval_select_fade = dbc.Fade(data_interval_select, id="data-interval-fad
 top_bar_items = [year_select,
                  race_select,
                  refresh_button_fade,
+                 loading_indicator,
                  last_update_text,
                  live_update_checkbox_fade,
                  refresh_rate_label_fade,
