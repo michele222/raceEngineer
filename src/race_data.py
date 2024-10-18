@@ -7,6 +7,7 @@ from statistics import mean, median
 import src.utils as utils
 from src.enums import Operation, DataInterval
 from src.utils import get_hex_color, time_iso
+from src.logger import logger
 
 
 class RaceData:
@@ -28,19 +29,20 @@ class RaceData:
             if response.status_code == 200:
                 data = response.json()
                 if len(data) == 0:
-                    self.__log_entry(request_text, 'Server response empty')
+                    self.__log_query(request_text, 'Server response empty')
                     return False
-                self.__log_entry(request_text, 'Success')
+                self.__log_query(request_text, 'Success')
                 return data
-            self.__log_entry(request_text, f'Server response: {response.status_code}')
+            self.__log_query(request_text, f'Server response: {response.status_code}')
             return False
         except Exception as e:
-            self.__log_entry(request_text, f'Error retrieving data: {e}')
+            self.__log_query(request_text, f'Error retrieving data: {e}')
             return False
 
-    def __log_entry(self, request_text, text):
+    def __log_query(self, request_text, text):
         # prints a message in the log including the API request
-        print(f"[{utils.timestamp_formatted()} {self.__server}{request_text}] {text}")
+        logger.info(f"[{self.__server}{request_text}] {text}")
+        #print(f"[{utils.timestamp_formatted()} {self.__server}{request_text}] {text}")
 
     def get_races_of_year(self, year=2024):
         # returns a dict with races (+sprints) of a specific year
