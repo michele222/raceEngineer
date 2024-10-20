@@ -2,7 +2,7 @@ from datetime import datetime
 
 import dash
 import dash_bootstrap_components as dbc
-from dash import Output, Input, State, ALL, html
+from dash import Output, Input, State, ALL, html, no_update
 from numpy import cumsum
 from plotly import graph_objs as go
 
@@ -57,22 +57,32 @@ def update_graphs(_refresh_timer,
                   checked):
     race = RaceData(selected_race)
     race_trace_data = race.get_driver_diff_laps()
-    if not race_trace_data:
-        raise dash.exceptions.PreventUpdate
+    # if not race_trace_data:
+    #     raise dash.exceptions.PreventUpdate
     live_gaps_data = race.get_driver_intervals(selected_data_interval)
-    if not live_gaps_data:
-        raise dash.exceptions.PreventUpdate
+    # if not live_gaps_data:
+    #     raise dash.exceptions.PreventUpdate
     drivers = {int(i): v for i, v in stored_drivers_data.items()}
     race_trace_graph = go.Figure(race_trace_graph)
     live_gaps_graph = go.Figure(live_gaps_graph)
-    last_update_text = f"Last updated on {utils.timestamp_formatted()}"
     driver_positions = race.get_driver_positions()
     driver_positions_table = {}
+    last_update_text = f"Last updated on {utils.timestamp_formatted()}"
+    if not race_trace_data:
+        last_update_text += " (no trace)"
+    if not live_gaps_data:
+        last_update_text += " (no gaps)"
+    if not driver_positions:
+        last_update_text += " (no pos)"
     activator = dash.ctx.triggered_id
-    if activator == 'drivers-data-store':
-        event = race.get_race_event()
-        race_trace_graph.layout.title = f'{event["country_name"]} {event["year"]} - {event["location"]}'
-        live_gaps_graph.layout.title = race_trace_graph.layout.title
+    if activator in ('drivers-data-store', 'refresh-button'):
+        if selected_race == 'latest':
+            race_trace_graph.layout.title = 'Latest race'
+            live_gaps_graph.layout.title = race_trace_graph.layout.title
+        else:
+            event = race.get_race_event()
+            race_trace_graph.layout.title = f'{event["country_name"]} {event["year"]} - {event["location"]}'
+            live_gaps_graph.layout.title = race_trace_graph.layout.title
         race_trace_graph.data = []
         live_gaps_graph.data = []
         for driver in drivers.values():
@@ -91,24 +101,37 @@ def update_graphs(_refresh_timer,
                 line_color=driver['team_colour']
             ))
     # Update the traces for the line plot
-    for driver_id, lap_times in race_trace_data.items():
-        race_trace_graph.update_traces(dict(x=list(lap_times.keys()),
-                                            y=cumsum(list(lap_times.values()))),
-                                       selector=({'name': drivers[driver_id]['name_acronym']}))
-    for driver_id, gaps in live_gaps_data.items():
-        gap_leader = next(reversed(gaps['leader'].values()))  # last gap in the series
-        gap_interval = next(reversed(gaps['interval'].values()))  # last gap in the series
-        live_gaps_graph.update_traces(dict(x=list(gaps['leader'].keys()),
-                                           y=list(y for y in gaps['leader'].values() if is_float(y))),
-                                      selector=({'name': drivers[driver_id]['name_acronym']}))
-        driver_positions_table[driver_positions[driver_id]['current']] = {
-            'last_name': drivers[driver_id]['last_name'],
-            'number': driver_id,
-            'gap_leader': gap_leader,
-            'gap_interval': gap_interval}
-    filtered_drivers = [driver["number"] for driver, selected in zip(checkboxes, checked) if selected]
-    live_gaps_table = draw_drivers_gap_table(driver_positions_table, filtered_drivers)
-    return race_trace_graph, live_gaps_graph, live_gaps_table, last_update_text, True, True, True
+    if race_trace_data:
+        for driver_id, lap_times in race_trace_data.items():
+            race_trace_graph.update_traces(dict(x=list(lap_times.keys()),
+                                                y=cumsum(list(lap_times.values()))),
+                                           selector=({'name': drivers[driver_id]['name_acronym']}))
+
+    if live_gaps_data:
+        for driver_id, gaps in live_gaps_data.items():
+            gap_leader = next(reversed(gaps['leader'].values()))  # last gap in the series
+            gap_interval = next(reversed(gaps['interval'].values()))  # last gap in the series
+            live_gaps_graph.update_traces(dict(x=list(gaps['leader'].keys()),
+                                               y=list(y for y in gaps['leader'].values() if is_float(y))),
+                                          selector=({'name': drivers[driver_id]['name_acronym']}))
+            if driver_positions:
+                driver_positions_table[driver_positions[driver_id]['current']] = {
+                    'last_name': drivers[driver_id]['last_name'],
+                    'number': driver_id,
+                    'gap_leader': gap_leader,
+                    'gap_interval': gap_interval}
+
+        filtered_drivers = [driver["number"] for driver, selected in zip(checkboxes, checked) if selected]
+        if driver_positions:
+            live_gaps_table = draw_drivers_gap_table(driver_positions_table, filtered_drivers)
+
+    return (race_trace_graph if race_trace_data else no_update,
+            live_gaps_graph if live_gaps_data else no_update,
+            live_gaps_table if live_gaps_data and driver_positions else no_update,
+            last_update_text,
+            True,
+            True,
+            True)
 
 
 @app.callback(
@@ -146,9 +169,11 @@ def change_refresh_rate(refresh_rate):
 def change_year_select(year):
     data = RaceData()
     races = data.get_races_of_year(year)
-    return [{'label': f'{race_item["country_name"]} - {race_item["location"]} - {race_item["session_name"]}',
-             'value': race_id}
-            for (race_id, race_item) in races.items()]
+    races_list = [{'label': f'{race_item["country_name"]} - {race_item["location"]} - {race_item["session_name"]}',
+                   'value': race_id}
+                  for (race_id, race_item) in races.items()]
+    races_list.append({'label': 'Latest', 'value': 'latest'})
+    return races_list
 
 
 @app.callback(Output({"type": "drivers-checkbox", "number": ALL}, "value"),

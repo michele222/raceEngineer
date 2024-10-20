@@ -75,10 +75,10 @@ tab1 = html.Div([race_trace_graph,
                  drivers_data_store
                  ])
 
-tab2 = [html.Div([live_gaps_table, filter_drivers_button],
+tab2 = [html.Div(html.Div([live_gaps_table, filter_drivers_button]),
                  style={'width': '25%', 'display': 'inline-block'}),
         html.Div(live_gaps_graph,
-                         style={'width': '75%', 'display': 'inline-block'})]
+                 style={'width': '75%', 'display': 'inline-block'})]
 
 tabs = dbc.Tabs(
     [
