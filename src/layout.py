@@ -47,6 +47,9 @@ live_gaps_graph = dcc.Graph(id='live-gaps-graph',
                                     paper_bgcolor='rgba(0,0,0,0)',
                                     font_color='#999999')))
 
+last_update_p1_text = html.Small(id="last-update-p1-text", className="text-muted")
+last_update_p2_text = html.Small(id="last-update-p2-text", className="text-muted")
+
 refresh_timer = dcc.Interval(
     id='refresh-timer',
     interval=default_refresh_rate * 1000,  # Update every x milliseconds
@@ -55,6 +58,7 @@ refresh_timer = dcc.Interval(
 )
 
 drivers_data_store = dcc.Store(id='drivers-data-store', data={})
+race_data_store = dcc.Store(id='race-data-store', data={})
 
 all_drivers_checkbox = dbc.Checkbox(id="all-drivers-checkbox", value=True)
 
@@ -71,14 +75,16 @@ live_gaps_table = dbc.Table([html.Thead(live_gaps_table_header),
 filter_drivers_button = dbc.Button("Filter drivers", id="filter-drivers-button", size="sm")
 
 tab1 = html.Div([race_trace_graph,
+                 last_update_p1_text,
                  refresh_timer,
-                 drivers_data_store
+                 drivers_data_store,
+                 race_data_store
                  ])
 
-tab2 = [html.Div([live_gaps_table, filter_drivers_button],
+tab2 = [html.Div(html.Div([live_gaps_table, filter_drivers_button]),
                  style={'width': '25%', 'display': 'inline-block'}),
-        html.Div(live_gaps_graph,
-                         style={'width': '75%', 'display': 'inline-block'})]
+        html.Div(html.Div([live_gaps_graph, last_update_p2_text]),
+                 style={'width': '75%', 'display': 'inline-block'})]
 
 tabs = dbc.Tabs(
     [
@@ -93,7 +99,7 @@ year_select = dbc.Select(list(range(current_year(), 2022, -1)), current_year(), 
 race_select = dbc.Select(placeholder="Select a race", id="race-select", size="sm")
 refresh_button = dbc.Button("Refresh", id="refresh-button", size="sm")
 refresh_button_fade = dbc.Fade(refresh_button, id="refresh-button-fade", is_in=False, appear=True)
-last_update_text = html.Small(id="last-update-text", className="text-muted")
+loading_indicator = dcc.Loading(id="loading_indicator", type="circle", display="hide")
 live_update_checkbox = dbc.Checkbox(id="live-update-checkbox", label="Live updates", value=False)
 live_update_checkbox_fade = dbc.Fade(live_update_checkbox, id="live-update-checkbox-fade", is_in=False, appear=True)
 refresh_rate_label = dbc.Label("Refresh rate (seconds)")
@@ -110,7 +116,7 @@ data_interval_select_fade = dbc.Fade(data_interval_select, id="data-interval-fad
 top_bar_items = [year_select,
                  race_select,
                  refresh_button_fade,
-                 last_update_text,
+                 loading_indicator,
                  live_update_checkbox_fade,
                  refresh_rate_label_fade,
                  refresh_rate_fade,

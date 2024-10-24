@@ -2,7 +2,7 @@
 
 raceEngineer is an interactive dashboard displaying historical and live data related to open wheel racing, implemented in Python with support of Dash and Plotly.
 
-Currently WIP
+![raceEngineer](raceEngineer.jpg?raw=true)
 
 ## Usage
 
