@@ -157,28 +157,27 @@ class RaceData:
         """
         Performs the selected operation on the lap times data, aggregated per lap.
         :param operation: operation from the Operations class in enums
-        :return: list with processed data, ordered per lap
+        :return: dict with processed data, ordered per lap
         """
-        avg_laps = defaultdict(list)
+        unprocessed_laps = defaultdict(list)
+        processed_laps = {0: 0.0} # all drivers start at 0 in lap 0
         if self.__data_driver_laps:
             for lap_item in self.__data_driver_laps:
                 if utils.is_float(lap_item['lap_duration']):
                     if lap_item['lap_number'] == 2:
-                        # all drivers start at 0 in lap 0
-                        avg_laps[0] = [0.0]
                         lap_start_iso_time = parser.isoparse(lap_item['date_start'])
                         # Lap 1 in the dataset is not timed: generate lap 1 times from the timestamps of lap 2 start
-                        avg_laps[1].append(float(lap_start_iso_time.strftime("%M")) * 60
+                        unprocessed_laps[1].append(float(lap_start_iso_time.strftime("%M")) * 60
                                            + float(lap_start_iso_time.strftime("%S.%f")))
-                    avg_laps[lap_item['lap_number']].append(lap_item['lap_duration'])
+                    unprocessed_laps[lap_item['lap_number']].append(lap_item['lap_duration'])
             match operation:
                 case Operation.AVG:
-                    for lap in avg_laps.keys():
-                        avg_laps[lap] = round(mean(avg_laps[lap]), 3)
+                    for lap in unprocessed_laps.keys():
+                        processed_laps[lap] = round(mean(unprocessed_laps[lap]), 3)
                 case Operation.MEDIAN:
-                    for lap in avg_laps.keys():
-                        avg_laps[lap] = round(median(avg_laps[lap]), 3)
-        return avg_laps
+                    for lap in unprocessed_laps.keys():
+                        processed_laps[lap] = round(median(unprocessed_laps[lap]), 3)
+        return processed_laps
 
     def get_driver_diff_laps(self, operation=Operation.MEDIAN, fixed_lap_duration=90):
         """
