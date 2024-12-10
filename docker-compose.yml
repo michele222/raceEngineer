@@ -1,0 +1,8 @@
+services:
+  web:
+    build: .
+    command: python main.py
+    volumes:
+      - .:/raceEngineer
+    ports:
+      - "8050:8050"
